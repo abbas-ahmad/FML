@@ -3,6 +3,7 @@ import argparse
 import csv
 import matplotlib.pyplot as plt
 import math
+import time
 ''' 
 You are only required to fill the following functions
 mean_squared_loss
@@ -124,6 +125,8 @@ class LinearRegressor:
 		for i in range(0,n):
 			a[i] = i
 		#print(a.shape)
+		predicted = np.where(predicted < 0 , np.random.randint(0,5) ,predicted)
+
 		#print(predicted.shape)
 		prediction = np.column_stack((a,predicted))
 		#print(prediction.shape)
@@ -193,8 +196,6 @@ def preprocess_dataset(xdata, ydata=None):
 	processed_data = np.delete(xdata,[0,1,2,3,5] ,axis=1)
 	processed_data = np.column_stack((all_ones,processed_data,days_array ,hr_array,season_array))
 	processed_data = processed_data.astype(dtype=float)
-	np.savetxt("prediction.csv", processed_data , fmt="%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i", delimiter="," , header="",comments="")
-
 	processed_data = processed_data.astype(dtype=float)
 	print(processed_data.shape)
 
@@ -224,7 +225,7 @@ def main():
 
 	# You are free to modify the main function as per your requirements.
 	# Uncomment the below lines and pass the appropriate value
-
+	start_time = time.time()
 	xtrain, ytrain, xtest = read_dataset(args.train_file, args.test_file)
 	xtrainprocessed, ytrainprocessed = preprocess_dataset(xtrain, ytrain)
 	xtestprocessed = preprocess_dataset(xtest)
@@ -235,7 +236,7 @@ def main():
 	model.train(xtrainprocessed, ytrainprocessed, loss_fn, loss_grad, args.epoch, args.lr)
 
 	ytest = model.predict(xtestprocessed)
-
+	print("Time taken : %s seconds " % (time.time() - start_time))
 
 if __name__ == '__main__':
 
