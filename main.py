@@ -54,22 +54,31 @@ def mean_squared_gradient(xdata, ydata, weights):
 def mean_absolute_loss(xdata, ydata, weights):
 	m = ydata.shape[0]
 	predicted = hypothesis(xdata,weights)
-	mal = (1/m)*np.sum(abs(ydata-predicted))
+	diff = predicted - ydata
+	mal = (1/m)*np.sum(np.absolute(diff))
 	return mal
 def mean_absolute_gradient(xdata, ydata, weights):
 	predicted = hypothesis(xdata,weights)
 	n = np.abs(predicted-ydata)
 	d = predicted-ydata
 	sign_vector = n/d
-	return np.dot(sign_vector,xdata)
+	return (np.dot(sign_vector,xdata))/xdata.shape[0]
 
 def mean_log_cosh_loss(xdata, ydata, weights):
-	predicted = hypothesis(xdata,ydata)
-	return np.log(np.cosh(np.absolute(predicted-ydata)))
+	m = ydata.shape[0]
+	predicted = hypothesis(xdata,weights)
+	diff = np.absolute((predicted - ydata))
+	v = np.full(diff.shape , 100)
+	#print(diff.shape)
+	#print("predicted: " + str(predicted.shape))
+    #log(cosh(min(100,abs(y_predicted - y_true)))) 
+	c = np.mean(np.log(np.cosh(np.minimum(v,diff))))
+	#print(c.shape)
+	return c
 
 def mean_log_cosh_gradient(xdata, ydata, weights):
 	predicted = hypothesis(xdata,weights)
-	return np.dot(np.tanh(predicted-ydata),xdata)
+	return (np.dot(np.tanh(predicted-ydata),xdata))/xdata.shape[0]
 
 def root_mean_squared_loss(xdata, ydata, weights):
 	return np.sqrt(mean_squared_loss(xdata,ydata,weights))
@@ -88,7 +97,9 @@ class LinearRegressor:
 		# You can use __init__ to initialise your weight and biases
 		# Create all class related variables here
 		#self.w = np.zeros(dims,dtype=float)
+		np.random.seed(0)
 		limit = 1 / math.sqrt(dims)
+		np.random.seed(0)
 		self.w = np.random.uniform(-1/dims,1/dims,(dims,))
 	def train(self, xtrain, ytrain, loss_function, gradient_function, epoch=10, lr=.001):
 		'''
@@ -101,19 +112,24 @@ class LinearRegressor:
 		gradient_function = gradient name of loss function
 		'''
 		# You need to write the training loop to update weights here
+		cost_list = []
+		ni = []
 		for i in range(0 ,epoch):
 			#predicted = hypothesis(xtrain,self.w)
-			cost_list = []
-			ni = []
-			cost = mean_squared_loss(xtrain,ytrain ,self.w)
-			dw = mean_squared_gradient(xtrain,ytrain,self.w)
+			cost = loss_function(xtrain,ytrain ,self.w)
+			dw = gradient_function(xtrain,ytrain,self.w)
 			self.w = self.w - lr * dw
-			np.empty((2,1))
 			cost_list.append(cost)
 			ni.append(i)
-			if (i%100 == 0):
-				print("cost ===>>"+str(cost)+" :" + str(i))
-		
+			# if (i%100 == 0):
+			# 	print("cost ===>>"+str(cost)+" :" + str(i))
+		plt.plot(ni,cost_list )
+		cost_list.clear()
+		#plt.ylim(0, 30000)
+		plt.xlabel("epoch")
+		plt.ylabel("Cost")
+		plt.legend(['rmse' ,'mse' , 'mae' , 'logcosh'])
+
 
 	def predict(self, xtest):
 		predicted = np.dot(xtest , self.w)
@@ -125,13 +141,17 @@ class LinearRegressor:
 		for i in range(0,n):
 			a[i] = i
 		#print(a.shape)
+		np.random.seed(0)
 		predicted = np.where(predicted < 0 , np.random.randint(0,5) ,predicted)
 
 		#print(predicted.shape)
 		prediction = np.column_stack((a,predicted))
 		#print(prediction.shape)
+		
 		np.savetxt("prediction.csv", prediction , fmt="%i , %i", delimiter="," , header="instance (id),count",comments="")
-
+		print("instance (id)\tcount")
+		for c1,c2 in prediction:
+			print("%i\t%i" %(c1,c2))
 def read_dataset(trainfile, testfile):
 	'''
 	Reads the input data from train and test files and 
@@ -184,7 +204,8 @@ def preprocess_dataset(xdata, ydata=None):
 	g = np.where(f == "Friday", 5 ,f)
 	days_1_to_7 = np.where(g == "Saturday", 6 ,g)
 	days_1_to_7 = days_1_to_7.astype(dtype=int)
-
+	#wind = xdata[:,11]
+	#wind = scale_wind(wind)
 	season = xdata[: , 2].astype(dtype=int)
 	hr = xdata[: , 3].astype(dtype=int)
 	days_array = get_one_hot(days_1_to_7 , 7)
@@ -197,7 +218,7 @@ def preprocess_dataset(xdata, ydata=None):
 	processed_data = np.column_stack((all_ones,processed_data,days_array ,hr_array,season_array))
 	processed_data = processed_data.astype(dtype=float)
 	processed_data = processed_data.astype(dtype=float)
-	print(processed_data.shape)
+	#print(processed_data.shape)
 
 
 	if(ydata is not None):
@@ -206,13 +227,16 @@ def preprocess_dataset(xdata, ydata=None):
 	else:
 		return processed_data
 
+def scale_wind(col):
+	a = np.where(col in range(0,10) , 0.9 ,col)
+	return a
+
 def norm(array):
 	a = np.where(array == 1, 0 ,array)
 	b = np.where(a == 2, 1 ,a)
 	c = np.where(b == 3, 2 ,b)
 	d = np.where(c == 4, 3 ,c)
 	return d
-
 
 dictionary_of_losses = {
 	'mse':(mean_squared_loss, mean_squared_gradient),
@@ -230,12 +254,24 @@ def main():
 	xtrainprocessed, ytrainprocessed = preprocess_dataset(xtrain, ytrain)
 	xtestprocessed = preprocess_dataset(xtest)
 	model = LinearRegressor(xtrainprocessed.shape[1])
-	# The loss function is provided by command line argument	
+	model1 = LinearRegressor(xtrainprocessed.shape[1])
+	model2 = LinearRegressor(xtrainprocessed.shape[1])
+	model3 = LinearRegressor(xtrainprocessed.shape[1])
+	model4 = LinearRegressor(xtrainprocessed.shape[1])
+	#The loss function is provided by command line argument	
 	loss_fn, loss_grad = dictionary_of_losses[args.loss]
+	print("Training...")
+	#model.train(xtrainprocessed, ytrainprocessed, loss_fn, loss_grad, args.epoch, args.lr)
 
-	model.train(xtrainprocessed, ytrainprocessed, loss_fn, loss_grad, args.epoch, args.lr)
+	model1.train(xtrainprocessed, ytrainprocessed, mean_squared_loss, mean_squared_gradient, args.epoch, args.lr)
+	model2.train(xtrainprocessed, ytrainprocessed, mean_squared_loss, mean_absolute_gradient, args.epoch, args.lr)
+	model3.train(xtrainprocessed, ytrainprocessed, mean_squared_loss, root_mean_squared_gradient, args.epoch, args.lr)
+	model4.train(xtrainprocessed, ytrainprocessed, mean_squared_loss, mean_log_cosh_gradient, args.epoch, args.lr)
+	plt.show()
 
-	ytest = model.predict(xtestprocessed)
+
+	#ytest = model.predict(xtestprocessed)
+	
 	print("Time taken : %s seconds " % (time.time() - start_time))
 
 if __name__ == '__main__':
@@ -243,8 +279,8 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument('--loss', default='mse', choices=['mse','mae','rmse','logcosh'], help='loss function')
-	parser.add_argument('--lr', default=1.0, type=float, help='learning rate')
-	parser.add_argument('--epoch', default=100, type=int, help='number of epochs')
+	parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
+	parser.add_argument('--epoch', default=80000, type=int, help='number of epochs')
 	parser.add_argument('--train_file', type=str, help='location of the training file')
 	parser.add_argument('--test_file', type=str, help='location of the test file')
 
